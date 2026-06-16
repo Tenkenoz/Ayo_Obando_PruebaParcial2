@@ -1,0 +1,43 @@
+services:
+
+  # ── Base de datos PostgreSQL ───────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: seguro_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: segurouser
+      POSTGRES_PASSWORD: seguro_pass
+      POSTGRES_DB: segurodb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql   # corre al primer arranque
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U segurouser -d segurodb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── API FastAPI ────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    container_name: seguro_api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://segurouser:seguro_pass@db:5432/segurodb
+      APP_NAME: SeguroApp
+      DEBUG: "true"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./Backend:/app      # hot-reload: los cambios se reflejan sin rebuild
+
+volumes:
+  postgres_data:
